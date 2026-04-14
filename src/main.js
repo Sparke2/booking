@@ -289,6 +289,13 @@ function render() {
 
   app.innerHTML = headerHtml;
 
+  if (state.loading) {
+    const overlay = document.createElement('div');
+    overlay.className = 'loading-overlay';
+    overlay.innerHTML = `<div class="spinner" aria-label="Загрузка" role="status"></div>`;
+    app.appendChild(overlay);
+  }
+
   const grid = document.getElementById('cal-grid');
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -517,7 +524,12 @@ function renderModal(slots) {
 
 // скрытый label для a11y
 const vis = document.createElement('style');
-vis.textContent = `.visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}`;
+vis.textContent = `
+  .visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  .loading-overlay{position:fixed;inset:0;background:rgba(15,23,42,.28);backdrop-filter:blur(2px);display:flex;align-items:center;justify-content:center;z-index:9999}
+  .spinner{width:44px;height:44px;border-radius:999px;border:4px solid rgba(255,255,255,.45);border-top-color:#fff;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+`;
 document.head.appendChild(vis);
 
 render();
