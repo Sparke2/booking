@@ -1,6 +1,8 @@
 import './style.css';
 
-const STORAGE_KEY = 'meeting-room-bookings-v1';
+// Google Apps Script Web App URL (Deploy → Web app → /exec)
+// Example: https://script.google.com/macros/s/AKfycb.../exec
+const SHEETS_API_URL = 'https://script.google.com/macros/s/AKfycbzs1j0fLrxgAZyNiYwlSHu9_Yt9hIgRmtdyJ8tObVKnTK7qd2vlitruF7VJfLD9S5C57w/exec';
 
 /** Рабочий день: первый слот и минута после последнего слота (end exclusive) */
 const DAY_START_MIN = 8 * 60;
@@ -54,19 +56,38 @@ function getSlotsForDay() {
   return slots;
 }
 
-function loadBookings() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const data = JSON.parse(raw);
-    return Array.isArray(data) ? data : [];
-  } catch {
-    return [];
+function assertApiConfigured() {
+  if (!SHEETS_API_URL) {
+    alert(
+      'Не задан URL Google Apps Script. Откройте src/main.js и вставьте ссылку в SHEETS_API_URL.',
+    );
+    return false;
   }
+  return true;
 }
 
-function saveBookings(list) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+async function apiListBookings() {
+  if (!assertApiConfigured()) return [];
+  const res = await fetch(`${SHEETS_API_URL}?action=list`, { method: 'GET' });
+  if (!res.ok) throw new Error(`API list failed: ${res.status}`);
+  const data = await res.json();
+  return Array.isArray(data?.bookings) ? data.bookings : [];
+}
+
+async function apiCreateBooking(booking) {
+  if (!assertApiConfigured()) return { ok: false, error: 'not_configured' };
+  const res = await fetch(`${SHEETS_API_URL}?action=create`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(booking),
+  });
+  if (!res.ok) throw new Error(`API create failed: ${res.status}`);
+  return await res.json();
+}
+
+async function refreshBookings() {
+  state.bookings = await apiListBookings();
+  render();
 }
 
 function bookingsForDate(bookings, dateKey) {
@@ -182,7 +203,7 @@ function datesWithBookingsInMonth(bookings, viewMonth) {
 const state = {
   viewMonth: new Date(),
   selectedDate: new Date(),
-  bookings: loadBookings(),
+  bookings: [],
   selStart: null,
   selEnd: null,
   modalOpen: false,
@@ -439,12 +460,16 @@ function renderModal(slots) {
   });
 
   overlay.querySelector('#modal-cancel').addEventListener('click', closeModal);
-  overlay.querySelector('#modal-save').addEventListener('click', () => {
+  overlay.querySelector('#modal-save').addEventListener('click', async () => {
     const label = input.value.trim() || 'Без подписи';
     const dateKey = formatDateKey(state.selectedDate);
     if (!rangeFree(state.bookings, dateKey, startMin, endMin)) {
       alert('Этот интервал уже занят. Обновите страницу.');
-      state.bookings = loadBookings();
+      try {
+        state.bookings = await apiListBookings();
+      } catch {
+        state.bookings = [];
+      }
       closeModal();
       clearSelection(state);
       render();
@@ -454,17 +479,23 @@ function renderModal(slots) {
       typeof crypto !== 'undefined' && crypto.randomUUID
         ? crypto.randomUUID()
         : `b-${Date.now()}`;
-    state.bookings.push({
-      id,
-      date: dateKey,
-      startMin,
-      endMin,
-      label,
-    });
-    saveBookings(state.bookings);
-    clearSelection(state);
-    state.modalOpen = false;
-    render();
+    const newBooking = { id, date: dateKey, startMin, endMin, label };
+    try {
+      const result = await apiCreateBooking(newBooking);
+      if (!result?.ok) {
+        alert(result?.error || 'Не удалось сохранить бронь.');
+        await refreshBookings();
+        closeModal();
+        clearSelection(state);
+        return;
+      }
+      state.bookings = Array.isArray(result.bookings) ? result.bookings : state.bookings;
+      clearSelection(state);
+      state.modalOpen = false;
+      render();
+    } catch {
+      alert('Ошибка сети при сохранении. Попробуйте ещё раз.');
+    }
   });
 }
 
@@ -474,3 +505,4 @@ vis.textContent = `.visually-hidden{position:absolute;width:1px;height:1px;paddi
 document.head.appendChild(vis);
 
 render();
+refreshBookings();
