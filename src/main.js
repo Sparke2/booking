@@ -95,8 +95,14 @@ async function apiCreateBooking(booking) {
 }
 
 async function refreshBookings() {
-  state.bookings = await apiListBookings();
+  state.loading = true;
   render();
+  try {
+    state.bookings = await apiListBookings();
+  } finally {
+    state.loading = false;
+    render();
+  }
 }
 
 function bookingsForDate(bookings, dateKey) {
@@ -216,6 +222,7 @@ const state = {
   selStart: null,
   selEnd: null,
   modalOpen: false,
+  loading: false,
 };
 
 const app = document.getElementById('app');

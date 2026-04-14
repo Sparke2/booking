@@ -38,18 +38,41 @@ function doPost(e) {
 
 function normalizeBooking_(b) {
   const id = String(b?.id || '').trim();
-  const date = String(b?.date || '').trim(); // YYYY-MM-DD
+  const date = toDateKey_(b?.date); // YYYY-MM-DD
   const startMin = Number(b?.startMin);
   const endMin = Number(b?.endMin);
   const label = String(b?.label || '').trim() || 'Без подписи';
 
   if (!id) return null;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  if (!date) return null;
   if (!Number.isFinite(startMin) || !Number.isFinite(endMin)) return null;
   if (!(startMin >= 0 && endMin > startMin)) return null;
   if (label.length > 120) return null;
 
   return { id, date, startMin, endMin, label };
+}
+
+function toDateKey_(value) {
+  // Accepts:
+  // - "YYYY-MM-DD"
+  // - Date object (from Sheets date cells)
+  // - String date like "Tue Apr 14 2026 ..."
+  if (value == null) return null;
+
+  const s = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+  let d = null;
+  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value)) {
+    d = value;
+  } else {
+    const parsed = new Date(s);
+    if (!isNaN(parsed)) d = parsed;
+  }
+  if (!d) return null;
+
+  const tz = Session.getScriptTimeZone();
+  return Utilities.formatDate(d, tz, 'yyyy-MM-dd');
 }
 
 function hasOverlap_(bookings, nb) {
@@ -83,7 +106,7 @@ function listBookings_() {
   for (let i = 1; i < values.length; i++) {
     const row = values[i];
     const id = String(row[0] || '').trim();
-    const date = String(row[1] || '').trim();
+    const date = toDateKey_(row[1]);
     const startMin = Number(row[2]);
     const endMin = Number(row[3]);
     const label = String(row[4] || '').trim();
@@ -95,6 +118,7 @@ function listBookings_() {
 
 function appendBooking_(b) {
   const sh = getSheet_();
+  // date stored as YYYY-MM-DD string to match frontend filters
   sh.appendRow([b.id, b.date, b.startMin, b.endMin, b.label, new Date().toISOString()]);
 }
 
