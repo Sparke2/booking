@@ -484,6 +484,7 @@ function renderModal(slots) {
 
   overlay.querySelector('#modal-cancel').addEventListener('click', closeModal);
   overlay.querySelector('#modal-save').addEventListener('click', async () => {
+    if (state.loading) return;
     const label = input.value.trim() || 'Без подписи';
     const dateKey = formatDateKey(state.selectedDate);
     if (!rangeFree(state.bookings, dateKey, startMin, endMin)) {
@@ -504,6 +505,8 @@ function renderModal(slots) {
         : `b-${Date.now()}`;
     const newBooking = { id, date: dateKey, startMin, endMin, label };
     try {
+      state.loading = true;
+      render();
       const result = await apiCreateBooking(newBooking);
       if (!result?.ok) {
         alert(result?.error || 'Не удалось сохранить бронь.');
@@ -518,6 +521,9 @@ function renderModal(slots) {
       render();
     } catch {
       alert('Ошибка сети при сохранении. Попробуйте ещё раз.');
+    } finally {
+      state.loading = false;
+      render();
     }
   });
 }
