@@ -76,10 +76,19 @@ async function apiListBookings() {
 
 async function apiCreateBooking(booking) {
   if (!assertApiConfigured()) return { ok: false, error: 'not_configured' };
+  // Важно: не используем application/json, иначе браузер сделает CORS preflight (OPTIONS),
+  // а Google Apps Script Web App обычно не отдаёт нужные заголовки для preflight.
+  const body = new URLSearchParams({
+    id: String(booking.id ?? ''),
+    date: String(booking.date ?? ''),
+    startMin: String(booking.startMin ?? ''),
+    endMin: String(booking.endMin ?? ''),
+    label: String(booking.label ?? ''),
+  });
+
   const res = await fetch(`${SHEETS_API_URL}?action=create`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(booking),
+    body,
   });
   if (!res.ok) throw new Error(`API create failed: ${res.status}`);
   return await res.json();

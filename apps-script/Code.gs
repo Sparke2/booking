@@ -10,11 +10,18 @@ function doPost(e) {
   const action = String(e?.parameter?.action || '');
   if (action !== 'create') return jsonOutput({ ok: false, error: 'unknown_action' });
 
+  // Принимаем и JSON (если где-то ещё используется), и form-urlencoded (без CORS preflight).
   let body = {};
-  try {
-    body = JSON.parse(e?.postData?.contents || '{}');
-  } catch (err) {
-    return jsonOutput({ ok: false, error: 'bad_json' });
+  const raw = String(e?.postData?.contents || '');
+  if (raw) {
+    try {
+      body = JSON.parse(raw);
+    } catch (err) {
+      // form-urlencoded приходит в e.parameter
+      body = e?.parameter || {};
+    }
+  } else {
+    body = e?.parameter || {};
   }
 
   const booking = normalizeBooking_(body);
